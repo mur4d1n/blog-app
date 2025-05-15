@@ -12,7 +12,7 @@ def parse_env_file(filename: str) -> dict:
         param_str = file.readline().strip()
 
         while param_str:
-            key, value = param_str.split('=')
+            key, value = param_str.split('=', 1)
 
             value_type = get_value_type(value)
 
