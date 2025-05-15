@@ -78,3 +78,9 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# env file
+.env
+
+# sqlite DB
+*.sqlite3
