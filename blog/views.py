@@ -2,6 +2,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.shortcuts import get_object_or_404, render
 from django.views.generic import ListView, DetailView
+from django.views.generic.edit import FormMixin
 
 from .forms import EmailPostForm
 from .models import Post
@@ -35,28 +36,35 @@ class PostDetailView(DetailView):
         )
 
 
-def post_share(request, post_id):
-    post = get_object_or_404(
-        Post,
-        id=post_id,
-        status=Post.Status.PUBLISHED,
-    )
+class PostShareView(FormMixin, DetailView):
+    form_class = EmailPostForm
+    model = Post
+    context_object_name = 'post'
+    template_name = 'blog/post/share.html'
+    pk_url_kwarg = 'post_id'
 
-    sent = False
+    def get_success_url(self):
+        return self.request.path
 
-    if request.method == 'POST':
-        form = EmailPostForm(request.POST)
+    def get_queryset(self):
+        return super().get_queryset().filter(status=Post.Status.PUBLISHED)
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form = self.get_form()
 
         if form.is_valid():
-            cd = form.cleaned_data
-            post_url = request.build_absolute_uri(post.get_absolute_url())
-            subject = f"{cd['name']} recommends you read {post.title}"
-            message = f"Read {post.title} at {post_url}\n\n{cd['name']}\'s ({cd['email']}) comments: {cd['comments']}"
+            return self.form_valid(form)
 
-            send_mail(subject, message, settings.EMAIL_HOST_USER, [cd['to']])
+        return self.form_invalid(form)
 
-            sent = True
-    else:
-        form = EmailPostForm()
+    def form_valid(self, form):
+        cd = form.cleaned_data
 
-    return render(request, 'blog/post/share.html', {'post': post, 'form': form, 'sent': sent})
+        post_url = self.request.build_absolute_uri(self.object.get_absolute_url())
+        subject = f"{cd['name']} recommends you read {self.object.title}"
+        message = f"Read {self.object.title} at {post_url}\n\n{cd['name']}\'s ({cd['email']}) comments: {cd['comments']}"
+
+        send_mail(subject, message, settings.EMAIL_HOST_USER, [cd['to']])
+
+        return render(self.request, 'blog/post/share.html', {'post': self.object, 'form': form, 'sent': True})
