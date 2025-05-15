@@ -1,10 +1,11 @@
 from django.core.mail import send_mail
 from django.conf import settings
 from django.shortcuts import get_object_or_404, render
+from django.views.decorators.http import require_POST
 from django.views.generic import ListView, DetailView
 from django.views.generic.edit import FormMixin
 
-from .forms import EmailPostForm
+from .forms import CommentForm, EmailPostForm
 from .models import Post
 
 
@@ -34,6 +35,13 @@ class PostDetailView(DetailView):
             publish__month=month,
             publish__day=day,
         )
+
+    def get(self, request, *args, **kwargs):
+        post = self.get_object()
+        comments = post.comments.filter(active=True)
+        form = CommentForm()
+
+        return render(request, 'blog/post/detail.html', {'post': post, 'comments': comments, 'form': form})
 
 
 class PostShareView(FormMixin, DetailView):
@@ -68,3 +76,19 @@ class PostShareView(FormMixin, DetailView):
         send_mail(subject, message, settings.EMAIL_HOST_USER, [cd['to']])
 
         return render(self.request, 'blog/post/share.html', {'post': self.object, 'form': form, 'sent': True})
+
+
+@require_POST
+def post_comment(request, post_id: int):
+    post = get_object_or_404(Post, id=post_id, status=Post.Status.PUBLISHED)
+
+    comment = None
+
+    form = CommentForm(request.POST)
+
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.post = post
+        comment.save()
+
+    return render(request, 'blog/post/comment.html', {'post': post, 'form': form, 'comment': comment})
